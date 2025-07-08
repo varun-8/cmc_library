@@ -21,6 +21,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import axios from 'axios';
+import { saveAs } from 'file-saver';
 
 interface DashboardStats {
   totalBooks: number;
@@ -46,6 +47,9 @@ interface Book {
   availableCopies: number;
   publisher: string;
   publishedYear: number;
+  description: string;
+  location: string;
+  pages: number;
 }
 
 interface Author {
@@ -107,6 +111,7 @@ const AdminDashboard: React.FC = () => {
   const [pendingRequests, setPendingRequests] = useState<BorrowRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingRequest, setProcessingRequest] = useState<string | null>(null);
+  const [processingAction, setProcessingAction] = useState<string | null>(null);
 
   // Form states
   const [showBookForm, setShowBookForm] = useState(false);
@@ -122,11 +127,15 @@ const AdminDashboard: React.FC = () => {
   const [categoryForm, setCategoryForm] = useState({
     name: '', code: '', description: ''
   });
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Request modal
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<BorrowRequest | null>(null);
   const [adminResponse, setAdminResponse] = useState('');
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
 
   useEffect(() => {
     fetchDashboardData();
@@ -161,48 +170,71 @@ const AdminDashboard: React.FC = () => {
   const handleAddBook = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/books', {
-        ...bookForm,
-        publishedYear: parseInt(bookForm.publishedYear),
-        totalCopies: parseInt(bookForm.totalCopies),
-        availableCopies: parseInt(bookForm.totalCopies),
-        pages: parseInt(bookForm.pages)
-      });
+      if (editingId) {
+        await axios.put(`http://localhost:5000/api/books/${editingId}`, {
+          ...bookForm,
+          publishedYear: parseInt(bookForm.publishedYear),
+          totalCopies: parseInt(bookForm.totalCopies),
+          pages: parseInt(bookForm.pages)
+        });
+      } else {
+        await axios.post('http://localhost:5000/api/books', {
+          ...bookForm,
+          publishedYear: parseInt(bookForm.publishedYear),
+          totalCopies: parseInt(bookForm.totalCopies),
+          availableCopies: parseInt(bookForm.totalCopies),
+          pages: parseInt(bookForm.pages)
+        });
+      }
       setShowBookForm(false);
       setBookForm({
         title: '', author: '', category: '', isbn: '', description: '',
         publisher: '', publishedYear: '', totalCopies: '', location: '', pages: ''
       });
+      setEditingId(null);
       fetchDashboardData();
     } catch (error) {
-      console.error('Error adding book:', error);
+      console.error('Error adding/updating book:', error);
     }
   };
 
   const handleAddAuthor = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/authors', {
-        ...authorForm,
-        specialization: authorForm.specialization.split(',').map(s => s.trim())
-      });
+      if (editingId) {
+        await axios.put(`http://localhost:5000/api/authors/${editingId}`, {
+          ...authorForm,
+          specialization: authorForm.specialization.split(',').map(s => s.trim())
+        });
+      } else {
+        await axios.post('http://localhost:5000/api/authors', {
+          ...authorForm,
+          specialization: authorForm.specialization.split(',').map(s => s.trim())
+        });
+      }
       setShowAuthorForm(false);
       setAuthorForm({ name: '', nationality: '', biography: '', specialization: '' });
+      setEditingId(null);
       fetchDashboardData();
     } catch (error) {
-      console.error('Error adding author:', error);
+      console.error('Error adding/updating author:', error);
     }
   };
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/categories', categoryForm);
+      if (editingId) {
+        await axios.put(`http://localhost:5000/api/categories/${editingId}`, categoryForm);
+      } else {
+        await axios.post('http://localhost:5000/api/categories', categoryForm);
+      }
       setShowCategoryForm(false);
       setCategoryForm({ name: '', code: '', description: '' });
+      setEditingId(null);
       fetchDashboardData();
     } catch (error) {
-      console.error('Error adding category:', error);
+      console.error('Error adding/updating category:', error);
     }
   };
 
@@ -244,6 +276,122 @@ const AdminDashboard: React.FC = () => {
   const openRequestModal = (request: BorrowRequest) => {
     setSelectedRequest(request);
     setShowRequestModal(true);
+  };
+
+  const handleEditBook = (book: Book) => {
+    setBookForm({
+      title: book.title,
+      author: book.author._id,
+      category: book.category._id,
+      isbn: book.isbn,
+      description: book.description || '',
+      publisher: book.publisher || '',
+      publishedYear: book.publishedYear.toString(),
+      totalCopies: book.totalCopies.toString(),
+      location: book.location || '',
+      pages: book.pages?.toString() || ''
+    });
+    setEditingId(book._id);
+    setShowBookForm(true);
+  };
+
+  const handleEditAuthor = (author: Author) => {
+    setAuthorForm({
+      name: author.name,
+      nationality: author.nationality,
+      biography: author.biography,
+      specialization: author.specialization?.join(', ') || ''
+    });
+    setEditingId(author._id);
+    setShowAuthorForm(true);
+  };
+
+  const handleEditCategory = (category: Category) => {
+    setCategoryForm({
+      name: category.name,
+      code: category.code,
+      description: category.description
+    });
+    setEditingId(category._id);
+    setShowCategoryForm(true);
+  };
+
+  const handleDeleteBook = async (bookId: string) => {
+    if (!window.confirm('Are you sure you want to delete this book?')) return;
+    setProcessingAction(`delete-book-${bookId}`);
+    try {
+      await axios.delete(`http://localhost:5000/api/books/${bookId}`);
+      fetchDashboardData();
+    } catch (error) {
+      console.error('Error deleting book:', error);
+    } finally {
+      setProcessingAction(null);
+    }
+  };
+
+  const handleDeleteAuthor = async (authorId: string) => {
+    if (!window.confirm('Are you sure you want to delete this author?')) return;
+    setProcessingAction(`delete-author-${authorId}`);
+    try {
+      await axios.delete(`http://localhost:5000/api/authors/${authorId}`);
+      fetchDashboardData();
+    } catch (error) {
+      console.error('Error deleting author:', error);
+    } finally {
+      setProcessingAction(null);
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (!window.confirm('Are you sure you want to delete this category?')) return;
+    setProcessingAction(`delete-category-${categoryId}`);
+    try {
+      await axios.delete(`http://localhost:5000/api/categories/${categoryId}`);
+      fetchDashboardData();
+    } catch (error) {
+      console.error('Error deleting category:', error);
+    } finally {
+      setProcessingAction(null);
+    }
+  };
+
+  const handleDeleteStudent = async (studentId: string) => {
+    if (!window.confirm('Are you sure you want to delete this student?')) return;
+    setProcessingAction(`delete-student-${studentId}`);
+    try {
+      await axios.delete(`http://localhost:5000/api/users/${studentId}`);
+      fetchDashboardData();
+    } catch (error) {
+      console.error('Error deleting student:', error);
+    } finally {
+      setProcessingAction(null);
+    }
+  };
+
+  const filteredBooks = books.filter(book => {
+    const matchesSearch =
+      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      book.isbn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      book.author?.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = filterCategory ? book.category?._id === filterCategory : true;
+    return matchesSearch && matchesCategory;
+  });
+
+  const handleExportBooks = () => {
+    const headers = ['Title', 'Author', 'Category', 'Available Copies', 'Total Copies', 'ISBN', 'Publisher', 'Published Year'];
+    const rows = filteredBooks.map(book => [
+      book.title,
+      book.author?.name,
+      book.category?.name,
+      book.availableCopies,
+      book.totalCopies,
+      book.isbn,
+      book.publisher,
+      book.publishedYear
+    ]);
+    let csvContent = headers.join(',') + '\n' + rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, 'books.csv');
   };
 
   if (loading) {
@@ -495,19 +643,53 @@ const AdminDashboard: React.FC = () => {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-3xl font-bold text-gray-900">Books Management</h2>
-              <button
-                onClick={() => setShowBookForm(true)}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 flex items-center space-x-2 shadow-lg"
-              >
-                <Plus className="h-5 w-5" />
-                <span>Add Book</span>
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => {
+                    setEditingId(null);
+                    setShowBookForm(true);
+                  }}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 flex items-center space-x-2 shadow-lg"
+                >
+                  <Plus className="h-5 w-5" />
+                  <span>Add Book</span>
+                </button>
+                <button
+                  onClick={handleExportBooks}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg ml-2 hover:bg-green-700 transition-colors"
+                >
+                  Export CSV
+                </button>
+              </div>
             </div>
 
-            {/* Add Book Form */}
+            {/* Search and Filter */}
+            <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-2 md:space-y-0 mb-4">
+              <input
+                type="text"
+                placeholder="Search books..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="border border-gray-300 rounded-lg px-4 py-2 w-full md:w-64"
+              />
+              <select
+                value={filterCategory}
+                onChange={e => setFilterCategory(e.target.value)}
+                className="border border-gray-300 rounded-lg px-4 py-2 w-full md:w-64"
+              >
+                <option value="">All Categories</option>
+                {categories.map(cat => (
+                  <option key={cat._id} value={cat._id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Add/Edit Book Form */}
             {showBookForm && (
               <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200">
-                <h3 className="text-xl font-bold mb-6 text-gray-900">Add New Book</h3>
+                <h3 className="text-xl font-bold mb-6 text-gray-900">
+                  {editingId ? 'Edit Book' : 'Add New Book'}
+                </h3>
                 <form onSubmit={handleAddBook} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <input
                     type="text"
@@ -600,7 +782,7 @@ const AdminDashboard: React.FC = () => {
                       type="submit"
                       className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg"
                     >
-                      Add Book
+                      {editingId ? 'Update Book' : 'Add Book'}
                     </button>
                     <button
                       type="button"
@@ -635,10 +817,13 @@ const AdminDashboard: React.FC = () => {
                       <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         ISBN
                       </th>
+                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {books.map((book) => (
+                    {filteredBooks.map((book) => (
                       <tr key={book._id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">{book.title}</div>
@@ -662,6 +847,27 @@ const AdminDashboard: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {book.isbn}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEditBook(book)}
+                              className="text-blue-600 hover:text-blue-900 bg-blue-50 px-3 py-1 rounded-md flex items-center space-x-1 hover:bg-blue-100 transition-colors"
+                            >
+                              <Edit className="h-4 w-4" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBook(book._id)}
+                              disabled={processingAction === `delete-book-${book._id}`}
+                              className="text-red-600 hover:text-red-900 bg-red-50 px-3 py-1 rounded-md flex items-center space-x-1 hover:bg-red-100 transition-colors disabled:opacity-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span>
+                                {processingAction === `delete-book-${book._id}` ? 'Deleting...' : 'Delete'}
+                              </span>
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -677,7 +883,10 @@ const AdminDashboard: React.FC = () => {
             <div className="flex justify-between items-center">
               <h2 className="text-3xl font-bold text-gray-900">Authors Management</h2>
               <button
-                onClick={() => setShowAuthorForm(true)}
+                onClick={() => {
+                  setEditingId(null);
+                  setShowAuthorForm(true);
+                }}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 flex items-center space-x-2 shadow-lg"
               >
                 <Plus className="h-5 w-5" />
@@ -685,10 +894,12 @@ const AdminDashboard: React.FC = () => {
               </button>
             </div>
 
-            {/* Add Author Form */}
+            {/* Add/Edit Author Form */}
             {showAuthorForm && (
               <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200">
-                <h3 className="text-xl font-bold mb-6 text-gray-900">Add New Author</h3>
+                <h3 className="text-xl font-bold mb-6 text-gray-900">
+                  {editingId ? 'Edit Author' : 'Add New Author'}
+                </h3>
                 <form onSubmit={handleAddAuthor} className="space-y-6">
                   <input
                     type="text"
@@ -726,7 +937,7 @@ const AdminDashboard: React.FC = () => {
                       type="submit"
                       className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg"
                     >
-                      Add Author
+                      {editingId ? 'Update Author' : 'Add Author'}
                     </button>
                     <button
                       type="button"
@@ -744,7 +955,26 @@ const AdminDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {authors.map((author) => (
                 <div key={author._id} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow">
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">{author.name}</h3>
+                  <div className="flex justify-between items-start">
+                    <h3 className="text-xl font-bold text-gray-900 mb-3">{author.name}</h3>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEditAuthor(author)}
+                        className="text-blue-600 hover:text-blue-900 bg-blue-50 p-2 rounded-full hover:bg-blue-100 transition-colors"
+                        title="Edit"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAuthor(author._id)}
+                        disabled={processingAction === `delete-author-${author._id}`}
+                        className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full hover:bg-red-100 transition-colors disabled:opacity-50"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
                   <p className="text-sm text-gray-600 mb-2">Nationality: <span className="font-medium">{author.nationality}</span></p>
                   {author.specialization && author.specialization.length > 0 && (
                     <div className="mb-4">
@@ -771,7 +1001,10 @@ const AdminDashboard: React.FC = () => {
             <div className="flex justify-between items-center">
               <h2 className="text-3xl font-bold text-gray-900">Categories Management</h2>
               <button
-                onClick={() => setShowCategoryForm(true)}
+                onClick={() => {
+                  setEditingId(null);
+                  setShowCategoryForm(true);
+                }}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 flex items-center space-x-2 shadow-lg"
               >
                 <Plus className="h-5 w-5" />
@@ -779,10 +1012,12 @@ const AdminDashboard: React.FC = () => {
               </button>
             </div>
 
-            {/* Add Category Form */}
+            {/* Add/Edit Category Form */}
             {showCategoryForm && (
               <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200">
-                <h3 className="text-xl font-bold mb-6 text-gray-900">Add New Category</h3>
+                <h3 className="text-xl font-bold mb-6 text-gray-900">
+                  {editingId ? 'Edit Category' : 'Add New Category'}
+                </h3>
                 <form onSubmit={handleAddCategory} className="space-y-6">
                   <input
                     type="text"
@@ -813,7 +1048,7 @@ const AdminDashboard: React.FC = () => {
                       type="submit"
                       className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg"
                     >
-                      Add Category
+                      {editingId ? 'Update Category' : 'Add Category'}
                     </button>
                     <button
                       type="button"
@@ -832,10 +1067,29 @@ const AdminDashboard: React.FC = () => {
               {categories.map((category) => (
                 <div key={category._id} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow">
                   <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-xl font-bold text-gray-900">{category.name}</h3>
-                    <span className="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-medium">
-                      {category.code}
-                    </span>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">{category.name}</h3>
+                      <span className="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-medium">
+                        {category.code}
+                      </span>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEditCategory(category)}
+                        className="text-blue-600 hover:text-blue-900 bg-blue-50 p-2 rounded-full hover:bg-blue-100 transition-colors"
+                        title="Edit"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(category._id)}
+                        disabled={processingAction === `delete-category-${category._id}`}
+                        className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full hover:bg-red-100 transition-colors disabled:opacity-50"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-sm text-gray-600">{category.description}</p>
                 </div>
@@ -946,6 +1200,9 @@ const AdminDashboard: React.FC = () => {
                       <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Phone
                       </th>
+                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -966,6 +1223,18 @@ const AdminDashboard: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {student.phone}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => handleDeleteStudent(student._id)}
+                            disabled={processingAction === `delete-student-${student._id}`}
+                            className="text-red-600 hover:text-red-900 bg-red-50 px-3 py-1 rounded-md flex items-center space-x-1 hover:bg-red-100 transition-colors disabled:opacity-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span>
+                              {processingAction === `delete-student-${student._id}` ? 'Deleting...' : 'Delete'}
+                            </span>
+                          </button>
                         </td>
                       </tr>
                     ))}

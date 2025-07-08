@@ -18,9 +18,11 @@ const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <Link to="/" className="flex items-center space-x-3">
-            <div className="bg-gradient-to-r from-blue-600 to-teal-600 p-2 rounded-lg">
-              <BookOpen className="h-6 w-6 text-white" />
-            </div>
+            <img
+              src="img\colored-logo.png"
+              alt="Coimbatore Medical College Logo"
+              className="h-12 w-12 object-contain"
+            />
             <div>
               <h1 className="text-xl font-bold text-gray-900">
                 Coimbatore Medical College
