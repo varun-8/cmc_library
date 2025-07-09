@@ -25,13 +25,18 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173'],
+  origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_ALT],
   credentials: true
 }));
 app.use(express.json());
 
 // MongoDB connection
-const MONGODB_URI = 'mongodb+srv://varun:root@library.lrkhwty.mongodb.net/coimbatore_medical_library';
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error('MONGODB_URI is not defined in environment variables');
+  process.exit(1);
+}
 
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('Connected to MongoDB'))
@@ -54,10 +59,11 @@ app.get('/api/health', (req, res) => {
 });
 
 // Schedule notification tasks
+const notificationInterval = parseInt(process.env.NOTIFICATION_CHECK_INTERVAL) || 60 * 60 * 1000;
 setInterval(() => {
   createDueDateReminders();
   createOverdueNotifications();
-}, 60 * 60 * 1000); // Run every hour
+}, notificationInterval); // Run based on environment configuration
 
 // Run notification tasks on startup
 setTimeout(() => {

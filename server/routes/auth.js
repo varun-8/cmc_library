@@ -4,7 +4,12 @@ import User from '../models/User.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.error('JWT_SECRET is not defined in environment variables');
+  process.exit(1);
+}
 
 // Admin Login
 router.post('/admin/login', async (req, res) => {
@@ -12,7 +17,7 @@ router.post('/admin/login', async (req, res) => {
     const { email, password } = req.body;
 
     // Check for hardcoded admin credentials
-    if (email === 'varunsiva88@gmail.com' && password === 'rockstar') {
+    if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
       // Check if admin user exists, if not create one
       let admin = await User.findOne({ email });
       if (!admin) {
