@@ -18,8 +18,36 @@ import {
   Filter,
   Download,
   Eye,
-  MessageSquare
+  MessageSquare,
+  BarChart3,
+  PieChart,
+  Activity,
+  DollarSign,
+  BookMarked,
+  Library,
+  GraduationCap,
+  Clock3,
+  TrendingDown,
+  FileText,
+  Printer
 } from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from 'recharts';
 import axios from 'axios';
 import { saveAs } from 'file-saver';
 
@@ -100,6 +128,53 @@ interface BorrowRequest {
   borrowRecordId?: string;
 }
 
+interface ReportData {
+  period: string;
+  startDate: string;
+  endDate: string;
+  basicStats: {
+    totalBooks: number;
+    totalStudents: number;
+    totalBorrows: number;
+    totalReturns: number;
+    totalOverdue: number;
+    totalFines: number;
+    avgBorrowDuration: number;
+  };
+  monthlyTrends: Array<{
+    _id: { year: number; month: number };
+    borrows: number;
+  }>;
+  categoryStats: Array<{
+    categoryName: string;
+    totalBooks: number;
+    totalCopies: number;
+    availableCopies: number;
+  }>;
+  departmentStats: Array<{
+    _id: string;
+    count: number;
+  }>;
+  activeStudents: Array<{
+    name: string;
+    studentId: string;
+    department: string;
+    borrowCount: number;
+  }>;
+  popularBooks: Array<{
+    title: string;
+    authorName: string;
+    borrowCount: number;
+  }>;
+  overdueAnalysis: Array<{
+    name: string;
+    studentId: string;
+    department: string;
+    overdueCount: number;
+    totalFine: number;
+  }>;
+}
+
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -137,9 +212,20 @@ const AdminDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
 
+  // Reports state
+  const [reportData, setReportData] = useState<ReportData | null>(null);
+  const [reportPeriod, setReportPeriod] = useState('month');
+  const [reportsLoading, setReportsLoading] = useState(false);
+
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'reports' && !reportData) {
+      fetchReportsData(reportPeriod);
+    }
+  }, [activeTab, reportData, reportPeriod]);
 
   const fetchDashboardData = async () => {
     try {
@@ -165,6 +251,23 @@ const AdminDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchReportsData = async (period: string = 'month') => {
+    setReportsLoading(true);
+    try {
+      const response = await axios.get(`http://localhost:5000/api/reports/overview?period=${period}`);
+      setReportData(response.data);
+    } catch (error) {
+      console.error('Error fetching reports data:', error);
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  const handlePeriodChange = (period: string) => {
+    setReportPeriod(period);
+    fetchReportsData(period);
   };
 
   const handleAddBook = async (e: React.FormEvent) => {
@@ -424,7 +527,8 @@ const AdminDashboard: React.FC = () => {
               { id: 'books', name: 'Books', icon: BookOpen },
               { id: 'authors', name: 'Authors', icon: Users },
               { id: 'categories', name: 'Categories', icon: BookOpen },
-              { id: 'students', name: 'Students', icon: Users, badge: stats?.pendingApprovals }
+              { id: 'students', name: 'Students', icon: Users, badge: stats?.pendingApprovals },
+              { id: 'reports', name: 'Reports', icon: BarChart3 }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -452,43 +556,55 @@ const AdminDashboard: React.FC = () => {
           <div className="space-y-8">
             {/* Enhanced Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 rounded-xl text-white shadow-lg">
+              <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-blue-100">Total Books</p>
+                    <p className="text-blue-100 text-sm font-medium">Total Books</p>
                     <p className="text-3xl font-bold">{stats.totalBooks}</p>
+                    <p className="text-blue-200 text-xs mt-1">In library collection</p>
                   </div>
-                  <BookOpen className="h-12 w-12 text-blue-200" />
+                  <div className="bg-blue-400 bg-opacity-30 p-3 rounded-full">
+                    <BookOpen className="h-8 w-8 text-blue-200" />
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-r from-green-500 to-green-600 p-6 rounded-xl text-white shadow-lg">
+              <div className="bg-gradient-to-r from-green-500 to-green-600 p-6 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-green-100">Available Books</p>
+                    <p className="text-green-100 text-sm font-medium">Available Books</p>
                     <p className="text-3xl font-bold">{stats.availableBooks}</p>
+                    <p className="text-green-200 text-xs mt-1">Ready for borrowing</p>
                   </div>
-                  <Check className="h-12 w-12 text-green-200" />
+                  <div className="bg-green-400 bg-opacity-30 p-3 rounded-full">
+                    <Check className="h-8 w-8 text-green-200" />
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-6 rounded-xl text-white shadow-lg">
+              <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-6 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-purple-100">Total Students</p>
+                    <p className="text-purple-100 text-sm font-medium">Total Students</p>
                     <p className="text-3xl font-bold">{stats.totalStudents}</p>
+                    <p className="text-purple-200 text-xs mt-1">Registered users</p>
                   </div>
-                  <Users className="h-12 w-12 text-purple-200" />
+                  <div className="bg-purple-400 bg-opacity-30 p-3 rounded-full">
+                    <Users className="h-8 w-8 text-purple-200" />
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-6 rounded-xl text-white shadow-lg">
+              <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-6 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-orange-100">Pending Requests</p>
+                    <p className="text-orange-100 text-sm font-medium">Pending Requests</p>
                     <p className="text-3xl font-bold">{stats.pendingRequests}</p>
+                    <p className="text-orange-200 text-xs mt-1">Awaiting approval</p>
                   </div>
-                  <Clock className="h-12 w-12 text-orange-200" />
+                  <div className="bg-orange-400 bg-opacity-30 p-3 rounded-full">
+                    <Clock className="h-8 w-8 text-orange-200" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1242,6 +1358,287 @@ const AdminDashboard: React.FC = () => {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Reports Tab */}
+        {activeTab === 'reports' && (
+          <div className="space-y-8">
+            {/* Reports Header */}
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900">Analytics & Reports</h2>
+                <p className="text-gray-600 mt-2">Comprehensive insights into library operations and performance</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                <select
+                  value={reportPeriod}
+                  onChange={(e) => handlePeriodChange(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="week">Last Week</option>
+                  <option value="month">This Month</option>
+                  <option value="quarter">This Quarter</option>
+                  <option value="year">This Year</option>
+                </select>
+                <button
+                  onClick={() => fetchReportsData(reportPeriod)}
+                  disabled={reportsLoading}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 flex items-center space-x-2 shadow-lg disabled:opacity-50"
+                >
+                  <Activity className={`h-4 w-4 ${reportsLoading ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            {reportsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading reports...</p>
+                </div>
+              </div>
+            ) : reportData ? (
+              <>
+                {/* Key Metrics Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-blue-100 text-sm font-medium">Total Borrows</p>
+                        <p className="text-3xl font-bold">{reportData.basicStats.totalBorrows}</p>
+                        <p className="text-blue-200 text-xs mt-1">This period</p>
+                      </div>
+                      <div className="bg-blue-400 bg-opacity-30 p-3 rounded-full">
+                        <BookOpen className="h-8 w-8 text-blue-200" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-green-500 to-green-600 p-6 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-green-100 text-sm font-medium">Total Returns</p>
+                        <p className="text-3xl font-bold">{reportData.basicStats.totalReturns}</p>
+                        <p className="text-green-200 text-xs mt-1">This period</p>
+                      </div>
+                      <div className="bg-green-400 bg-opacity-30 p-3 rounded-full">
+                        <Check className="h-8 w-8 text-green-200" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-red-500 to-red-600 p-6 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-red-100 text-sm font-medium">Overdue Books</p>
+                        <p className="text-3xl font-bold">{reportData.basicStats.totalOverdue}</p>
+                        <p className="text-red-200 text-xs mt-1">Currently overdue</p>
+                      </div>
+                      <div className="bg-red-400 bg-opacity-30 p-3 rounded-full">
+                        <AlertTriangle className="h-8 w-8 text-red-200" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 p-6 rounded-xl text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-yellow-100 text-sm font-medium">Total Fines</p>
+                        <p className="text-3xl font-bold">₹{reportData.basicStats.totalFines}</p>
+                        <p className="text-yellow-200 text-xs mt-1">Collected</p>
+                      </div>
+                      <div className="bg-yellow-400 bg-opacity-30 p-3 rounded-full">
+                        <DollarSign className="h-8 w-8 text-yellow-200" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Charts Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Monthly Trends Chart */}
+                  <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-bold text-gray-900">Borrowing Trends</h3>
+                      <TrendingUp className="h-6 w-6 text-blue-500" />
+                    </div>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={reportData.monthlyTrends.map(trend => ({
+                        month: `${trend._id.year}-${trend._id.month.toString().padStart(2, '0')}`,
+                        borrows: trend.borrows
+                      }))}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" />
+                        <YAxis />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="borrows" stroke="#3B82F6" strokeWidth={3} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Category Distribution */}
+                  <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-bold text-gray-900">Category Distribution</h3>
+                      <PieChart className="h-6 w-6 text-green-500" />
+                    </div>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <RechartsPieChart>
+                        <Pie
+                          data={reportData.categoryStats}
+                          dataKey="totalBooks"
+                          nameKey="categoryName"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          fill="#8884d8"
+                          label={({ categoryName, totalBooks }) => `${categoryName}: ${totalBooks}`}
+                        >
+                          {reportData.categoryStats.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index % 5]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </RechartsPieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Detailed Analytics */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Most Active Students */}
+                  <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-bold text-gray-900">Most Active Students</h3>
+                      <GraduationCap className="h-6 w-6 text-purple-500" />
+                    </div>
+                    <div className="space-y-4">
+                      {reportData.activeStudents.map((student, index) => (
+                        <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <div className="bg-purple-100 p-2 rounded-full">
+                              <span className="text-purple-600 font-bold text-sm">#{index + 1}</span>
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{student.name}</p>
+                              <p className="text-sm text-gray-600">{student.studentId} • {student.department}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-purple-600">{student.borrowCount}</p>
+                            <p className="text-xs text-gray-500">borrows</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Popular Books */}
+                  <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-bold text-gray-900">Popular Books</h3>
+                      <Star className="h-6 w-6 text-yellow-500" />
+                    </div>
+                    <div className="space-y-4">
+                      {reportData.popularBooks.map((book, index) => (
+                        <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <div className="bg-yellow-100 p-2 rounded-full">
+                              <span className="text-yellow-600 font-bold text-sm">#{index + 1}</span>
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{book.title}</p>
+                              <p className="text-sm text-gray-600">by {book.authorName}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-yellow-600">{book.borrowCount}</p>
+                            <p className="text-xs text-gray-500">borrows</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Department Statistics */}
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-gray-900">Department Statistics</h3>
+                    <Users className="h-6 w-6 text-blue-500" />
+                  </div>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={reportData.departmentStats.map(dept => ({
+                      department: dept._id,
+                      students: dept.count
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="department" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="students" fill="#3B82F6" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Overdue Analysis */}
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-gray-900">Overdue Analysis</h3>
+                    <AlertTriangle className="h-6 w-6 text-red-500" />
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Student
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Department
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Overdue Books
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Total Fine
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {reportData.overdueAnalysis.map((student, index) => (
+                          <tr key={index} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                              <div className="text-sm text-gray-500">{student.studentId}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {student.department}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                {student.overdueCount} books
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600">
+                              ₹{student.totalFine}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12 text-center">
+                <BarChart3 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">No reports available</h3>
+                <p className="text-gray-600">Click refresh to load the latest reports</p>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -13,6 +13,7 @@ import borrowRoutes from './routes/borrows.js';
 import dashboardRoutes from './routes/dashboard.js';
 import requestRoutes from './routes/requests.js';
 import notificationRoutes from './routes/notifications.js';
+import reportRoutes from './routes/reports.js';
 import { createDueDateReminders, createOverdueNotifications } from './utils/notificationService.js';
 
 dotenv.config();
@@ -47,6 +48,7 @@ app.use('/api/borrows', borrowRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
